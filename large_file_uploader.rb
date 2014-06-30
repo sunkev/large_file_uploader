@@ -1,12 +1,15 @@
 
 #set :bind, '0.0.0.0'
 
+require 'bundler/setup'
 require 'sinatra'
 require 'haml'
 require 'base64'
 require 'json'
 require 'pry'
 require 'dotenv'
+require 'pony'
+require 'aws-sdk'
 
 Dotenv.load
 
@@ -30,11 +33,15 @@ get '/uploads/new' do
 end
 
 post '/uploads' do
+  time = Time.now
+
   source_hash = {
-      dest_email: params[:destination_email],
-      sender_email: params[:sender_email],
-      keep_days: params[:keep_file_days],
-      max_file_size: params[:max_file_size]
+    dest_email:    params[:destination_email].downcase,
+    sender_email:  params[:sender_email].downcase,
+    keep_days:     params[:keep_file_days],
+    max_file_size: params[:max_file_size],
+    current_time:  time.strftime('%H%M%S'),
+    current_day:   time.strftime('%Y%m%d')
   }
   source_string = source_hash.map{|k,v| "#{k}:#{v}"}.join(';')
 
@@ -58,16 +65,57 @@ get '/send/:upload_key' do |upload_key|
   plain = decipher.update(upload_string) + decipher.final
 
   plain_hash =  plain.split(';').inject(Hash.new){|hsh,elem| k,v = elem.split(':'); hsh[k.to_sym] = v; hsh}
-  @keep_days = plain_hash[:keep_days]
-  @sender_email = plain_hash[:sender_email]
-  @max_file_size = plain_hash[:max_file_size]
-  @dest_email = plain_hash[:dest_email]
 
-  #set up the S3 bucket for this upload, with correct expiration policy.
+  @keep_days = plain_hash[:keep_days].to_i
+  @sender_email = plain_hash[:sender_email]
+  @dest_email = plain_hash[:dest_email]
+  @max_file_size = plain_hash[:max_file_size]
+
+  ###
+  @folder_name = "nebupload_#{@sender_email}_#{plain_hash[:current_day]}_#{plain_hash[:current_time]}"
+  s3 = AWS::S3.new
+  @bucket = s3.buckets[$BUCKET]
+  update_folder_expiration unless bucket_rule_exists?
+
   haml :send
 end
 
-post '/notifications' do
-  # message = params[:message]
-  #todo: validate the hashed message saying that the upload is complete
+post '/notifications/:folder_name/:sender_email/:dest_email' do
+  folder_name = URI.decode(params[:folder_name])
+  s3 = AWS::S3.new
+  bucket = s3.buckets[$BUCKET]
+
+  @url_array = bucket.objects.with_prefix(folder_name).map do |obj|
+    {name: obj.key.gsub(folder_name + '/', ''), url: obj.url_for(:get, expires:obj.expiration_date).to_s}
+  end
+
+  pony(URI.decode(params[:sender_email]))
+  pony(URI.decode(params[:dest_email]))
+end
+
+
+def update_folder_expiration
+  @bucket.lifecycle_configuration.update({keep_days: @keep_days, folder_name: @folder_name}) do |args|
+    add_rule(args[:folder_name] + '/', expiration_time: args[:keep_days ])
+  end
+end
+
+def bucket_rule_exists?
+  @bucket.lifecycle_configuration.rules.select{|rule|rule.prefix == "#{@folder_name}/"}.length > 0
+end
+
+def pony(address)
+  Pony.mail to: address,
+            via: :smtp,
+            subject: 'NEB Upload Ready',
+            via_options: {
+                address:               'smtp.gmail.com',
+                port:                  '587',
+                enable_starttls_auto:  true,
+                user_name:             ENV['EMAIL_ADDRESS'],
+                password:              ENV['EMAIL_PASSWORD'],
+                authentication:        :plain, # :plain, :login, :cram_md5, no auth by default
+                domain:                "localhost.localdomain" # the HELO domain provided by the client to the server
+            },
+            html_body: erb(:email)
 end
