@@ -86,6 +86,12 @@ function Uploader(config, handlerOptions){
   this.sendFullFileToAmazon = function(upload){
     var signer = new Signer(upload);
     var auth = this.encryptAuth(signer.initSingleStr);
+//    debugger;
+    //
+
+//    var md5 = this.md5(upload.file);
+
+    debugger;
     $.ajax({
       xhr: function(){
         var xhr = $.ajaxSettings.xhr() ;
@@ -101,6 +107,7 @@ function Uploader(config, handlerOptions){
       beforeSend: function (xhr) {
         xhr.setRequestHeader("x-amz-date", signer.date);
         xhr.setRequestHeader("Authorization", auth);
+        xhr.setRequestHeader("Content-MD5", md5val);
       },
       success: function() {
         this.handler.successUploadCompleteHandler(upload)
@@ -108,7 +115,7 @@ function Uploader(config, handlerOptions){
       error: function(){
         this.handler.initUploadFailureHandler(upload, this.sendFullFileToAmazon);
       }
-    })
+    });
   };
 
   this.uploadParts = function(upload){
@@ -187,7 +194,6 @@ function Uploader(config, handlerOptions){
     var crypto = CryptoJS.HmacSHA1(stringToSign, this.config.secretKey).toString(CryptoJS.enc.Base64);
     return 'AWS'+' '+this.config.accessKey+':'+crypto
   };
-
 
   _.bindAll(this, "sendPartToAmazon", "removeUpload", "addUploadToView", "createUpload");
   _.bindAll(this, "getFile", "startUploads", "initiateMultipartUpload", "sendFullFileToAmazon");
