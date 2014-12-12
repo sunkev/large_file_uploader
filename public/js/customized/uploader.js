@@ -63,7 +63,7 @@ function Uploader(config, handlerOptions){
 
   this.initiateMultipartUpload = function(upload){
     var signer = new Signer(upload);
-    var auth = this.encryptAuth(signer.initMultiStr);
+    var auth = signer.encryptAuth(signer.initMultiStr);
     return $.ajax({
       url : signer.multipartInitURL,
       type: 'post',
@@ -85,13 +85,8 @@ function Uploader(config, handlerOptions){
 
   this.sendFullFileToAmazon = function(upload){
     var signer = new Signer(upload);
-    var auth = this.encryptAuth(signer.initSingleStr);
-//    debugger;
-    //
+    var auth = signer.encryptAuth(signer.initSingleStr);
 
-//    var md5 = this.md5(upload.file);
-
-    debugger;
     $.ajax({
       xhr: function(){
         var xhr = $.ajaxSettings.xhr() ;
@@ -135,7 +130,7 @@ function Uploader(config, handlerOptions){
 
   this.completeMultipart = function(upload){
     var signer = new Signer(upload);
-    var auth = this.encryptAuth(signer.finishMultiStr());
+    var auth = signer.encryptAuth(signer.finishMultiStr());
     var data = this.templateRenderer.renderXML(upload);
 
     $.ajax({
@@ -160,7 +155,7 @@ function Uploader(config, handlerOptions){
 
   this.sendPartToAmazon = function(part){
     var signer = new Signer(part.upload);
-    var auth = this.encryptAuth(signer.stringToSign(part));
+    var auth = signer.encryptAuth(signer.partStr(part));
 
     $.ajax({
       url: signer.partURL(part),
@@ -190,14 +185,9 @@ function Uploader(config, handlerOptions){
     this.uploadQueue = _.without(this.uploadQueue, upload)
   };
 
-  this.encryptAuth = function(stringToSign){
-    var crypto = CryptoJS.HmacSHA1(stringToSign, this.config.secretKey).toString(CryptoJS.enc.Base64);
-    return 'AWS'+' '+this.config.accessKey+':'+crypto
-  };
-
   _.bindAll(this, "sendPartToAmazon", "removeUpload", "addUploadToView", "createUpload");
   _.bindAll(this, "getFile", "startUploads", "initiateMultipartUpload", "sendFullFileToAmazon");
-  _.bindAll(this, "encryptAuth", "uploadParts", "timedUploadPart", "completeMultipart");
+  _.bindAll(this, "uploadParts", "timedUploadPart", "completeMultipart");
 
   this.uploadForm.$fileInput.on('change', this.getFile);
   this.uploadForm.$container.on('drop', this.getFile);
