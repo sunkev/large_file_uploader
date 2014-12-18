@@ -31,12 +31,7 @@ function Uploader(config, handlerOptions){
         alert('THIS FILE IS TOO LARGE')
       } else {
         this.addUploadToView(fileNumber, file);
-        calculateMd5(fileNumber, file, this).then(
-          // mutable variables are annoying
-          function(fileNumber, file, md5, uploader){
-            uploader.createUpload(fileNumber, file, md5)
-          }
-        );
+        this.createUpload(fileNumber, file)
       }
     }
   };
@@ -46,10 +41,17 @@ function Uploader(config, handlerOptions){
     this.uploadForm.$tbody.append(template);
   };
 
-  this.createUpload = function(fileNumber, file, md5){
-    var upload = new Upload('.upload-'+fileNumber, file, md5, this.config);
-    upload.$deleteButton.on('click', {upload: upload}, this.removeUpload);
-    this.uploadQueue.push(upload);
+  this.createUpload = function(fileNumber, file){
+    var upload = new Upload('.upload-'+fileNumber, file, this.config);
+
+    calculateMd5(upload, this).then(
+      // mutable variables are annoying
+      function(upload, md5, uploader){
+        upload.md5 = md5;
+        upload.$deleteButton.on('click', {upload: upload}, uploader.removeUpload);
+        uploader.uploadQueue.push(upload);
+      }
+    );
   };
 
   this.startUploads = function(e){
@@ -192,16 +194,35 @@ function Uploader(config, handlerOptions){
 
   //test md5
 
-  function calculateMd5(fileNumber, file, uploader){
+  function calculateMd5(upload, uploader){
     var deferred = $.Deferred();
+
+//    for(var partNumber=1; partNumber <= upload.totalChunks; partNumber++){
+//        var part = new UploadPart(upload.file, partNumber, upload);
+//        upload.parts.push(part);
+//        uploader.sendPartToAmazon(part);
+//    }
+//
+//
+//    setTimeout(function(){
+//      var part = new UploadPart(upload.file, partNumber, upload);
+//      upload.parts.push(part);
+//      uploader.sendPartToAmazon(part);
+//    }, 5000 * partNumber);
+
 
     var reader = new FileReader();
     reader.onload = function (e) {
-      var binary = event.target.result;
-      var md5 = CryptoJS.MD5(binary).toString(CryptoJS.enc.Base64)  ;
-      deferred.resolve(fileNumber, file, md5, uploader);
+//      var binary = event.target.result;
+//      var md5 = SparkMD5.hash(event.target.result);
+////      debugger;
+//      var words = CryptoJS.enc.Utf8.parse(md5);
+//
+//      var base64 = CryptoJS.enc.Base64.stringify(words).toString();
+      var base64 = CryptoJS.MD5(event.target.result).toString(CryptoJS.enc.Base64)  ;
+      deferred.resolve(upload, base64, uploader);
     };
-    reader.readAsBinaryString(file);
+    reader.readAsBinaryString(upload.file);
 
     return deferred.promise();
   }
