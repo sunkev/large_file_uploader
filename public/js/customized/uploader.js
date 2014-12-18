@@ -31,7 +31,12 @@ function Uploader(config, handlerOptions){
         alert('THIS FILE IS TOO LARGE')
       } else {
         this.addUploadToView(fileNumber, file);
-        this.createUpload(fileNumber, file);
+        calculateMd5(fileNumber, file, this).then(
+          // mutable variables are annoying
+          function(fileNumber, file, md5, uploader){
+            uploader.createUpload(fileNumber, file, md5)
+          }
+        );
       }
     }
   };
@@ -41,8 +46,8 @@ function Uploader(config, handlerOptions){
     this.uploadForm.$tbody.append(template);
   };
 
-  this.createUpload = function(fileNumber, file){
-    var upload = new Upload('.upload-'+fileNumber, file, this.config);
+  this.createUpload = function(fileNumber, file, md5){
+    var upload = new Upload('.upload-'+fileNumber, file, md5, this.config);
     upload.$deleteButton.on('click', {upload: upload}, this.removeUpload);
     this.uploadQueue.push(upload);
   };
@@ -102,7 +107,7 @@ function Uploader(config, handlerOptions){
       beforeSend: function (xhr) {
         xhr.setRequestHeader("x-amz-date", signer.date);
         xhr.setRequestHeader("Authorization", auth);
-        xhr.setRequestHeader("Content-MD5", md5val);
+        xhr.setRequestHeader("Content-MD5", upload.md5);
       },
       success: function() {
         this.handler.successUploadCompleteHandler(upload)
@@ -184,6 +189,22 @@ function Uploader(config, handlerOptions){
     upload.$el.remove();
     this.uploadQueue = _.without(this.uploadQueue, upload)
   };
+
+  //test md5
+
+  function calculateMd5(fileNumber, file, uploader){
+    var deferred = $.Deferred();
+
+    var reader = new FileReader();
+    reader.onload = function (e) {
+      var binary = event.target.result;
+      var md5 = CryptoJS.MD5(binary).toString(CryptoJS.enc.Base64)  ;
+      deferred.resolve(fileNumber, file, md5, uploader);
+    };
+    reader.readAsBinaryString(file);
+
+    return deferred.promise();
+  }
 
   _.bindAll(this, "sendPartToAmazon", "removeUpload", "addUploadToView", "createUpload");
   _.bindAll(this, "getFile", "startUploads", "initiateMultipartUpload", "sendFullFileToAmazon");

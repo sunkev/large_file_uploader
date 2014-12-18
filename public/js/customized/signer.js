@@ -7,27 +7,8 @@ function Signer(upload){
   var uploadId = upload.uploadId;
 
   this.date             = new Date().toUTCString();
-  this.initSingleStr    = 'PUT\n\nmultipart/form-data\n\nx-amz-date:'+this.date+'\n/'+bucket+'/'+awsObjURL;
+  this.initSingleStr    = 'PUT\n'+this.upload.md5+'\nmultipart/form-data\n\nx-amz-date:'+this.date+'\n/'+bucket+'/'+awsObjURL;
   this.initMultiStr     = 'POST\n\n\n\nx-amz-date:'+this.date+'\n/'+bucket+'/'+awsObjURL+'?uploads';
-
-  this.calculatemd5 = function(){
-    var deferred = $.Deferred();
-
-    var reader = new FileReader();
-    reader.onload = function (e) {
-      var binary = event.target.result;
-      var md5 = CryptoJS.MD5(binary).toString();
-      deferred.resolve(md5);
-    };
-    reader.readAsBinaryString(upload.file);
-
-    return deferred.promise();
-  };
-
-   this.md5 = this.calculatemd5().then(
-    function(val){
-      return val
-    });
 
   this.abortStr         = function(){
     return 'DELETE\n\n\n\nx-amz-date:'+this.date+
