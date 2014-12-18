@@ -44,14 +44,21 @@ function Uploader(config, handlerOptions){
   this.createUpload = function(fileNumber, file){
     var upload = new Upload('.upload-'+fileNumber, file, this.config);
 
-    calculateMd5(upload, this).then(
-      // mutable variables are annoying
-      function(upload, md5, uploader){
-        upload.md5 = md5;
-        upload.$deleteButton.on('click', {upload: upload}, uploader.removeUpload);
-        uploader.uploadQueue.push(upload);
-      }
-    );
+    // multipart does not need the upload to have an md5
+//    if(upload.canUseMultipart){
+//      upload.$deleteButton.on('click', {upload: upload}, this.removeUpload);
+//      this.uploadQueue.push(upload);
+//    } else {
+      calculateUploadMd5(upload, this).then(
+        // mutable variables are annoying
+        function(upload, md5, uploader){
+          debugger;
+          upload.md5 = md5;
+          upload.$deleteButton.on('click', {upload: upload}, uploader.removeUpload);
+          uploader.uploadQueue.push(upload);
+        }
+      );
+//    }
   };
 
   this.startUploads = function(e){
@@ -192,39 +199,42 @@ function Uploader(config, handlerOptions){
     this.uploadQueue = _.without(this.uploadQueue, upload)
   };
 
-  //test md5
+  function calculateUploadMd5(upload, uploader){
+    var md5 = CryptoJS.algo.MD5.create();
+    var partNumber = 1;
 
-  function calculateMd5(upload, uploader){
+    return recursion(partNumber, upload, md5).then(function(val){
+      var deferred = $.Deferred();
+      deferred.resolve(upload, val, uploader);
+      return deferred
+    });
+  }
+
+  function recursion(partNumber, upload, md5) {
+    return createMd5(partNumber, upload, md5).then(function(binaryString){
+      md5.update(binaryString);
+      if(partNumber <= upload.totalChunks) {
+        return recursion(partNumber + 1, upload, md5);
+      }else{
+        return md5.finalize().toString(CryptoJS.enc.Base64)
+      }
+    });
+  }
+
+  function createMd5(partNumber, upload, md5){
     var deferred = $.Deferred();
-
-//    for(var partNumber=1; partNumber <= upload.totalChunks; partNumber++){
-//        var part = new UploadPart(upload.file, partNumber, upload);
-//        upload.parts.push(part);
-//        uploader.sendPartToAmazon(part);
-//    }
-//
-//
-//    setTimeout(function(){
-//      var part = new UploadPart(upload.file, partNumber, upload);
-//      upload.parts.push(part);
-//      uploader.sendPartToAmazon(part);
-//    }, 5000 * partNumber);
-
 
     var reader = new FileReader();
     reader.onload = function (e) {
-//      var binary = event.target.result;
-//      var md5 = SparkMD5.hash(event.target.result);
-////      debugger;
-//      var words = CryptoJS.enc.Utf8.parse(md5);
-//
-//      var base64 = CryptoJS.enc.Base64.stringify(words).toString();
-      var base64 = CryptoJS.MD5(event.target.result).toString(CryptoJS.enc.Base64)  ;
-      deferred.resolve(upload, base64, uploader);
+      deferred.resolve(event.target.result);
     };
-    reader.readAsBinaryString(upload.file);
 
-    return deferred.promise();
+    var startByte = upload.config.multipartMinSize * (partNumber - 1);
+    var endByte = upload.config.multipartMinSize * (partNumber);
+    var blob = upload.file.slice(startByte, endByte);
+
+    reader.readAsBinaryString(blob);
+    return deferred;
   }
 
   _.bindAll(this, "sendPartToAmazon", "removeUpload", "addUploadToView", "createUpload");

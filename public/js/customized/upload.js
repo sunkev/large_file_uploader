@@ -4,7 +4,7 @@ function Upload(el, file, config){
   this.$progressBar     = this.$el.find('.progress-bar');
   this.$status          = this.$el.find('.status');
   this.file             = file;
-  this.md5              = 'Not yet set, or multipart';
+  this.md5              = '';
   this.parts            = [];
   this.config           = config;
   this.awsObjURL        = encodeURI(this.config.folderName + '/' + this.file.name).replace(/%20/g, "_");
