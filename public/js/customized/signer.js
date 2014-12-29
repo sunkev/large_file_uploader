@@ -32,7 +32,7 @@ function Signer(upload){
 
   // part stuff
   this.partStr = function(part){
-    return 'PUT\n\nmultipart/form-data\n\nx-amz-date:' + this.date +
+    return 'PUT\n'+part.md5+'\nmultipart/form-data\n\nx-amz-date:' + this.date +
       '\n/' + bucket + '/' +
       awsObjURL +
       '?partNumber=' + part.partNumber +

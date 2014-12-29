@@ -44,21 +44,20 @@ function Uploader(config, handlerOptions){
   this.createUpload = function(fileNumber, file){
     var upload = new Upload('.upload-'+fileNumber, file, this.config);
 
-    // multipart does not need the upload to have an md5
-//    if(upload.canUseMultipart){
-//      upload.$deleteButton.on('click', {upload: upload}, this.removeUpload);
-//      this.uploadQueue.push(upload);
-//    } else {
+//    multipart does not need the upload to have an md5
+    if(upload.canUseMultipart){
+      upload.$deleteButton.on('click', {upload: upload}, this.removeUpload);
+      this.uploadQueue.push(upload);
+    } else {
       calculateUploadMd5(upload, this).then(
         // mutable variables are annoying
         function(upload, md5, uploader){
-          debugger;
           upload.md5 = md5;
           upload.$deleteButton.on('click', {upload: upload}, uploader.removeUpload);
           uploader.uploadQueue.push(upload);
         }
       );
-//    }
+    }
   };
 
   this.startUploads = function(e){
@@ -137,8 +136,15 @@ function Uploader(config, handlerOptions){
     var uploader = this;
     setTimeout(function(){
       var part = new UploadPart(upload.file, partNumber, upload);
-      upload.parts.push(part);
-      uploader.sendPartToAmazon(part);
+
+      calculatePartMd5(part).then(
+        function(md5){
+
+          part.md5 = md5;
+          upload.parts.push(part);
+          uploader.sendPartToAmazon(part);
+        }
+      )
     }, 5000 * partNumber);
   };
 
@@ -181,6 +187,7 @@ function Uploader(config, handlerOptions){
       beforeSend: function (xhr) {
         xhr.setRequestHeader("x-amz-date", signer.date);
         xhr.setRequestHeader("Authorization", auth);
+        xhr.setRequestHeader("Content-MD5", part.md5);
       },
       context: this,
       success: function(data, textStatus, jqXHR) {
@@ -210,6 +217,19 @@ function Uploader(config, handlerOptions){
     });
   }
 
+  function calculatePartMd5(part){
+    var md5 = CryptoJS.algo.MD5.create();
+
+    var deferred = $.Deferred();
+    createMd5(part.partNumber, part.upload, md5).then(function(binaryString){
+      md5.update(binaryString);
+      var finalMd5 = md5.finalize().toString(CryptoJS.enc.Base64);
+      return  deferred.resolve(finalMd5, part);
+    });
+
+    return deferred
+  }
+
   function recursion(partNumber, upload, md5) {
     return createMd5(partNumber, upload, md5).then(function(binaryString){
       md5.update(binaryString);
@@ -226,7 +246,8 @@ function Uploader(config, handlerOptions){
 
     var reader = new FileReader();
     reader.onload = function (e) {
-      deferred.resolve(event.target.result);
+      //All strings in JavaScript -- even "binary strings" -- are actually UTF-16 characters.
+      deferred.resolve(CryptoJS.enc.Latin1.parse(event.target.result));
     };
 
     var startByte = upload.config.multipartMinSize * (partNumber - 1);
