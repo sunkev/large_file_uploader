@@ -158,7 +158,7 @@ function Uploader(config, handlerOptions){
       type: 'POST',
       dataType: 'xml',
       data: data,
-      contentType: false,
+      contentType: 'text/plain;charset=UTF-8',
       context: this,
       beforeSend: function (xhr) {
         xhr.setRequestHeader("x-amz-date", signer.date);
@@ -245,7 +245,7 @@ function Uploader(config, handlerOptions){
     var deferred = $.Deferred();
 
     var reader = new FileReader();
-    reader.onload = function (e) {
+    reader.onload = function (event) {
       //All strings in JavaScript -- even "binary strings" -- are actually UTF-16 characters.
       deferred.resolve(CryptoJS.enc.Latin1.parse(event.target.result));
     };

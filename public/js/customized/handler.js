@@ -68,12 +68,13 @@ function Handler(uploader, options){
     if(upload.retries < 4)
     {
       setTimeout(function() {
-        this.completeMultipart(upload);
+        uploader.completeMultipart(upload);
       }, 2000);
     }
     else
     {
-      var auth = this.encryptAuth(upload.abortStr());
+      var signer = new Signer(upload);
+      var auth = signer.encryptAuth(signer.abortStr());
       $.ajax({
         url : 'https://' + upload.config.bucket + '.s3.amazonaws.com/'+encodeURI(upload.awsObjURL)+'?uploadId='+upload.uploadId,
         type: 'DELETE',
